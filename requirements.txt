@@ -1,0 +1,1 @@
+streamlitpandasplotly==5.22.0openaiprophet==1.1.4pystan==2.19.1.1
