@@ -1,5 +1,6 @@
-import plotly.express as px
-import plotly
+#import plotly.express as px
+#import plotly
+import altair as alt
 import streamlit as st
 import pandas as pd
 #import openai
@@ -356,23 +357,23 @@ if data_utama_file:
         # ===== ANALISA TOP 10 (PLOTLY + TABEL) =====
         st.markdown("## 📊 Summarized")
         def plot_top(df, col, title):
-                top = df[col].value_counts().head(10).sort_values(ascending=True).reset_index()
-                top.columns = [col, 'Jumlah']
-                col1, col2 = st.columns([3, 1])  # 60:40
-                with col1:
-                    fig = px.bar(
-                        top,
-                        x='Jumlah',
-                        y=col,
-                        orientation='h',
-                        title=title,
-                        text='Jumlah'
-                    )
-                    fig.update_layout(yaxis=dict(categoryorder='total ascending'))
-                    st.plotly_chart(fig, use_container_width=True)
-                with col2:
-                    st.markdown(f"#### 📋 Top 10: {col}")
-                    st.dataframe(top.sort_values("Jumlah", ascending=False), use_container_width=True)
+            top = df[col].value_counts().head(10).sort_values(ascending=True).reset_index()
+            top.columns = [col, 'Jumlah']
+
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                chart = alt.Chart(top).mark_bar().encode(
+                    x=alt.X('Jumlah:Q', title='Jumlah'),
+                    y=alt.Y(f'{col}:N', sort='-x'),
+                    tooltip=[col, 'Jumlah']
+                ).properties(
+                    title=title,
+                    height=300
+                )
+                st.altair_chart(chart, use_container_width=True)
+            with col2:
+                st.markdown(f"#### 📋 Top 10: {col}")
+                st.dataframe(top.sort_values("Jumlah", ascending=False), use_container_width=True)
 
         if 'City' in join_result.columns:
             plot_top(join_result, 'City', '🏙️ Top 10 City')
@@ -405,14 +406,11 @@ if data_utama_file:
         #else:
             #st.info("Kolom 'Hotel Name' tidak ditemukan.")
         
-        # ===== FUNGSI ANALISA ROOM NIGHT =====
+                # ===== FUNGSI ANALISA ROOM NIGHT =====
         def show_room_night_analysis(df):
-            #st.markdown("## 🛏️ Analisa Berdasarkan Room Night")
-
             if 'Hotel Name' in df.columns and 'Number of Rooms Night' in df.columns:
-                #st.markdown("### 🏨 Top 10 Hotel berdasarkan Total Room Night")
                 df['Number of Rooms Night'] = pd.to_numeric(df['Number of Rooms Night'], errors='coerce')
-                top_hotel_rooms = (
+                top_hotel = (
                     df.groupby('Hotel Name')['Number of Rooms Night']
                     .sum()
                     .sort_values(ascending=False)
@@ -422,61 +420,56 @@ if data_utama_file:
 
                 col1, col2 = st.columns([3, 1])
                 with col1:
-                    fig_top_hotel = px.bar(
-                        top_hotel_rooms,
-                        x='Number of Rooms Night',
-                        y='Hotel Name',
-                        orientation='h',
-                        title='🏨 Top 10 Hotel berdasarkan Jumlah Room Night',
-                        text='Number of Rooms Night'
+                    chart = alt.Chart(top_hotel).mark_bar().encode(
+                        x=alt.X('Number of Rooms Night:Q'),
+                        y=alt.Y('Hotel Name:N', sort='-x'),
+                        tooltip=['Hotel Name', 'Number of Rooms Night']
+                    ).properties(
+                        title='🏨 Top 10 Hotel berdasarkan Room Night',
+                        height=300
                     )
-                    fig_top_hotel.update_layout(yaxis=dict(categoryorder='total ascending'))
-                    st.plotly_chart(fig_top_hotel, use_container_width=True)
+                    st.altair_chart(chart, use_container_width=True)
                 with col2:
                     st.markdown("#### 📋 Tabel Top 10 Hotel")
-                    st.dataframe(top_hotel_rooms, use_container_width=True)
-            else:
-                st.info("Data tidak memiliki kolom 'Hotel Name' dan/atau 'Number of Rooms Night'.")
+                    st.dataframe(top_hotel, use_container_width=True)
 
             if 'Check-In Date' in df.columns and 'Number of Rooms Night' in df.columns:
-                #st.markdown("### 📈 Time Series: Jumlah Room Night per Tanggal Check-In")
                 df['Check-In Date'] = pd.to_datetime(df['Check-In Date'], errors='coerce')
                 df['Number of Rooms Night'] = pd.to_numeric(df['Number of Rooms Night'], errors='coerce')
 
-                df_ts = (
+                ts = (
                     df.groupby('Check-In Date')['Number of Rooms Night']
                     .sum()
                     .reset_index()
                     .sort_values('Check-In Date')
                 )
 
-                fig_ts = px.line(
-                    df_ts,
-                    x='Check-In Date',
-                    y='Number of Rooms Night',
-                    markers=True,
-                    title='📅 Tren Room Night per Tanggal Check-In'
+                chart = alt.Chart(ts).mark_line(point=True).encode(
+                    x=alt.X('Check-In Date:T', title='Tanggal Check-In'),
+                    y=alt.Y('Number of Rooms Night:Q', title='Jumlah Room Night'),
+                    tooltip=['Check-In Date', 'Number of Rooms Night']
+                ).properties(
+                    title='📅 Tren Room Night per Tanggal Check-In',
+                    height=300
                 )
-                fig_ts.update_traces(line=dict(color="#1e40af"))
-                fig_ts.update_layout(xaxis_title="Tanggal Check-In", yaxis_title="Jumlah Room Night")
-                st.plotly_chart(fig_ts, use_container_width=True)
-            else:
-                st.info("Data tidak memiliki kolom 'Check-In Date' dan/atau 'Number of Rooms Night'.")
+
+                st.altair_chart(chart, use_container_width=True)
         
         def show_voucher_amount_analysis(df):
             if 'Check-In Date' in df.columns and 'Voucher Hotel Amount' in df.columns:
+                # Konversi kolom tanggal
                 df['Check-In Date'] = pd.to_datetime(df['Check-In Date'], errors='coerce')
-                # Bersihkan data angka dari simbol atau string
-                #df['Voucher Hotel Amount'] = df['Voucher Hotel Amount'].astype(str).replace('[^\d.]', '', regex=True).astype(float)
+
+                # Bersihkan nilai angka
                 df['Voucher Hotel Amount'] = (
                     df['Voucher Hotel Amount']
                     .astype(str)
                     .replace('[^\d.,]', '', regex=True)
-                    .str.replace(',', '', regex=False)  # hilangkan koma ribuan jika ada
+                    .str.replace(',', '', regex=False)
                 )
+                df['Voucher Hotel Amount'] = pd.to_numeric(df['Voucher Hotel Amount'], errors='coerce')
 
-                df['Voucher Hotel Amount'] = pd.to_numeric(df['Voucher Hotel Amount'], errors='coerce')                
-
+                # Hitung jumlah total amount per tanggal
                 df_voucher_ts = (
                     df.groupby('Check-In Date')['Voucher Hotel Amount']
                     .sum()
@@ -484,20 +477,17 @@ if data_utama_file:
                     .sort_values('Check-In Date')
                 )
 
-                fig_voucher_ts = px.line(
-                    df_voucher_ts,
-                    x='Check-In Date',
-                    y='Voucher Hotel Amount',
-                    markers=True,
-                    title='💵 Tren Voucher Hotel Amount per Tanggal Check-In'
+                # Visualisasi Altair Line Chart
+                chart = alt.Chart(df_voucher_ts).mark_line(point=True).encode(
+                    x=alt.X('Check-In Date:T', title='Tanggal Check-In'),
+                    y=alt.Y('Voucher Hotel Amount:Q', title='Jumlah Voucher Hotel'),
+                    tooltip=['Check-In Date', 'Voucher Hotel Amount']
+                ).properties(
+                    title='💵 Tren Voucher Hotel Amount per Tanggal Check-In',
+                    height=300
                 )
-                fig_voucher_ts.update_traces(line=dict(color="#047857"))
-                fig_voucher_ts.update_layout(
-                    xaxis_title="Tanggal Check-In",
-                    yaxis_title="Jumlah Voucher Hotel (Amount)",
-                    yaxis_tickformat=',.0f'
-                )
-                st.plotly_chart(fig_voucher_ts, use_container_width=True)
+
+                st.altair_chart(chart, use_container_width=True)
             else:
                 st.info("Data tidak memiliki kolom 'Check-In Date' dan/atau 'Voucher Hotel Amount'.")
 
